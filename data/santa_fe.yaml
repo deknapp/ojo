@@ -1,0 +1,145 @@
+# Santa Fe automated enforcement — curated by hand, because there is no feed.
+#
+# The city runs six RELOCATABLE trailers. There is no machine-readable list of
+# where they are, and no legal duty to publish one (see docs/sourcing.md).
+# Every entry below therefore carries the source it came from and the date that
+# source is good for, and the site renders that date rather than hiding it.
+#
+# status:
+#   announced  - named by the city or in reporting; not independently re-checked
+#   active     - announced and the grace period has passed
+#   removed    - reported gone; kept so the history stays readable
+#
+# Do not add an entry without a `sources:` block. A pin with no provenance is
+# worse than no pin: it teaches a driver to relax everywhere it is absent.
+
+program:
+  jurisdiction: Santa Fe
+  authority: Santa Fe Traffic Operations Program (STOP), SFCC 1987 Section 24-4
+  operator: Santa Fe Police Department
+  vendor: Jenoptik Smart Mobility Solutions, LLC
+  device_type: relocatable trailer
+  unit_count: 6
+  launched: 2026-09-01
+  grace_period_ends: 2026-10-01
+  location_publication: >-
+    SFPD Facebook page and posted street signs. No open-data feed, no API, and
+    no ordinance requirement to publish. The Facebook page is login-walled, so
+    it cannot be read programmatically.
+  sources:
+    - url: https://www.jenoptik.us/news/press-releases/2026/07/22/mobile-speed-and-noise-enforcement-systems-in-santa-fe-new-mexico
+      retrieved: 2026-09-20
+      note: vendor announcement; six mobile trailers, placement by complaints + crash data
+    - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+      retrieved: 2026-09-20
+      note: launch date, grace period, and the block-level location list below
+
+# Citation thresholds and fines are NOT from reporting. They are from the
+# ordinance itself, which is the only source that actually governs.
+penalties:
+  source:
+    url: https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf
+    section: SFCC 24-4.5(H)
+    retrieved: 2026-09-20
+  speed:
+    default:
+      cited_above_mph_over: 10
+      first_offense_usd: 50
+      repeat_within_2y_usd: 100
+    school_or_construction_zone:
+      cited_above_mph_over: 5
+      first_offense_usd: 100
+      repeat_within_2y_usd: 150
+  noise:
+    first_offense_usd: 500
+    limit_reference: SFCC 10-2.9 (Motor Vehicle Noise)
+
+locations:
+  - id: sf-zia-2400
+    label: Zia Road, 2400 block
+    street: West Zia Road
+    geocode_query: 2400 Zia Road, Santa Fe, NM
+    enforcement: [speed]
+    status: active
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-aguafria-2600
+    label: Agua Fría Street, 2600 block
+    street: Agua Fria Street
+    geocode_query: 2600 Agua Fria Street, Santa Fe, NM
+    enforcement: [speed]
+    status: active
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-rodeo-3200
+    label: Rodeo Road, 3200 block
+    street: Rodeo Road
+    geocode_query: 3200 Rodeo Road, Santa Fe, NM
+    enforcement: [speed]
+    status: active
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-airport-7500
+    label: Airport Road, 7500 block
+    street: Airport Road
+    geocode_query: 7500 Airport Road, Santa Fe, NM
+    # Nominatim resolves this to OLD Airport Road, a different street half a
+    # kilometre away. The snap step fixes it: every location is pulled onto the
+    # nearest way actually named `street`, so the geocoder only has to be close.
+    enforcement: [speed]
+    status: active
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-jaguar-6700
+    label: Jaguar Drive, 6700 block
+    street: Jaguar Drive
+    geocode_query: 6700 Jaguar Drive, Santa Fe, NM
+    enforcement: [speed]
+    status: active
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-airport-constellation
+    label: Airport Road at Constellation Drive
+    street: Airport Road
+    intersection_with: Constellation Drive
+    enforcement: [speed]
+    status: announced
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    note: reported as a setup location during installation
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20
+
+  - id: sf-rodeo-pueblos
+    label: Rodeo Road at Paseo de los Pueblos
+    street: Rodeo Road
+    intersection_with: Paseo de los Pueblos
+    enforcement: [speed]
+    status: announced
+    first_announced: 2026-08-28
+    last_confirmed: 2026-08-28
+    note: reported as a setup location during installation
+    sources:
+      - url: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
+        retrieved: 2026-09-20

@@ -62,7 +62,7 @@ def overpass(query: str, *, retries: int = 3) -> dict:
             except Exception as exc:  # noqa: BLE001 - retried and re-raised below
                 last = exc
                 log.warning("overpass attempt %d failed: %s", attempt + 1, exc)
-                time.sleep(5 * (attempt + 1))
+                time.sleep(15 * (attempt + 1))
         raise RuntimeError(f"overpass failed after {retries} attempts") from last
 
     return cached_json("overpass", query, produce)  # type: ignore[return-value]

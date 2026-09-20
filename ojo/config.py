@@ -19,6 +19,15 @@ CACHE_DIR = ROOT / ".cache"
 #: on the state highways north of Santa Fe, so the box stops there.
 BBOX = (34.95, -107.00, 35.95, -105.70)  # south, west, north, east
 
+#: Per-city boxes. Overpass charges for area, and a case-insensitive regex on
+#: `name` across the whole study box times out or gets rate-limited -- so every
+#: street lookup is asked inside the city that actually announced the camera.
+CITY_BBOX = {
+    "Santa Fe": (35.57, -106.12, 35.76, -105.86),
+    "Albuquerque": (34.95, -106.85, 35.28, -106.45),
+    "Rio Rancho": (35.19, -106.80, 35.36, -106.55),
+}
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 

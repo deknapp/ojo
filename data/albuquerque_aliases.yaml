@@ -1,0 +1,22 @@
+# Albuquerque names its cameras the way people speak -- "Gibson", "98th",
+# "Coors Bypass" -- and OpenStreetMap names them the way the sign reads,
+# with a type and a quadrant: "Gibson Boulevard Southeast".
+#
+# The matcher handles the common case on its own (announced name plus one
+# road-type word, trailing quadrant ignored, accents ignored). What is left
+# here is the genuinely irregular: abbreviations the two sources spell
+# differently, and one camera aimed at a trail crossing rather than a street.
+#
+# Anything still unresolved after this is printed by `ojo build` rather than
+# dropped, because a camera this code cannot place is not a camera that is
+# not there.
+aliases:
+  "Coors Bypass": Coors Boulevard Bypass
+  "98th": 98th Street
+  "Fourth Street": 4th Street
+  "Third Street": 3rd Street
+  "St. Joseph": Saint Josephs Drive
+  "Old Ouray": Ouray Road
+  "Montano": Montano Road
+  "Flor Del Sol": Flor Del Sol Avenue
+  "Black Diversion Channel Trail crossing": Ellison Drive

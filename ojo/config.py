@@ -68,11 +68,16 @@ FIXED_CORRIDOR_HALF_LENGTH_M = 150.0
 #: as "school nearby -- check for a posted zone", never as a zone boundary.
 SCHOOL_PROXIMITY_M = 300.0
 
-#: NCES public school points, republished as a feature service. Authoritative
-#: for where schools are; says nothing at all about where zones are signed.
+#: NCES public-school universe, published by the National Center for Education
+#: Statistics. Authoritative for where schools are; says nothing at all about
+#: where zones are signed.
+#:
+#: There is a "New Mexico Public Schools" layer on ArcGIS that looks like the
+#: obvious choice and is not: it holds 43 features, all of them in Santa Fe,
+#: despite the statewide name. This one has 312 inside the study area.
 SCHOOLS_FEATURE_SERVICE = (
-    "https://services7.arcgis.com/p0Gk2nDbPs7KEqSZ/arcgis/rest/services/"
-    "NMPublicSchools_1/FeatureServer/0/query"
+    "https://services1.arcgis.com/Ua5sjt3LWTPigjyD/arcgis/rest/services/"
+    "Public_School_Locations_Current/FeatureServer/0/query"
 )
 
 #: Albuquerque publishes its own list. This is the only official, current,

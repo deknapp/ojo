@@ -139,7 +139,8 @@ footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 16px;
   date on it, not a guarantee; the signs by the road are authoritative and this page is not.
   Source and data: <a href="https://github.com/deknapp/ojo">github.com/deknapp/ojo</a>.
   Roads and geometry &copy; OpenStreetMap contributors. Routing by
-  <a href="https://project-osrm.org/">OSRM</a>.</p>
+  <a href="https://project-osrm.org/">OSRM</a>. Basemap tiles &copy;
+  <a href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" rel="noopener">Esri</a>.</p>
 </footer>
 </main>
 
@@ -150,9 +151,28 @@ const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 
 const map = L.map("map", { scrollWheelZoom: false }).setView([35.66, -106.0], 12);
 map.on("click", () => map.scrollWheelZoom.enable());
-L.tileLayer("https://{s}.basemaps.cartocdn.com/" + (dark() ? "dark_all" : "light_all") + "/{z}/{x}/{y}{r}.png", {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+// Esri's gray canvas, which needs no key. CARTO's tiles were used here first
+// and now watermark every one of them with "API KEY REQUIRED".
+//
+// The canvas only has tiles to zoom 16, so maxNativeZoom lets Leaflet stretch
+// the last level rather than go blank on the block-level zooms this map is
+// mostly read at. The basemap is a nicety in any case: the corridors are the
+// map, and if the tiles never load the page still works.
+const esri = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_" +
+  (dark() ? "Dark" : "Light") + "_Gray_";
+L.tileLayer(esri + "Base/MapServer/tile/{z}/{y}/{x}", {
+  attribution: '&copy; Esri &middot; roads &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxNativeZoom: 16,
   maxZoom: 19,
+}).addTo(map);
+
+// Street names ship as a separate transparent layer. Without it the map is a
+// pretty abstract and you cannot tell which corridor you are looking at.
+L.tileLayer(esri + "Reference/MapServer/tile/{z}/{y}/{x}", {
+  maxNativeZoom: 16,
+  maxZoom: 19,
+  pane: "shadowPane",
+  opacity: 0.85,
 }).addTo(map);
 
 const routeLayer = L.layerGroup().addTo(map);

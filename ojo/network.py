@@ -1,36 +1,29 @@
-"""One road download per city, then everything else is local.
+"""The city's road network, and where its streets meet.
 
-The naive way to place forty Albuquerque cameras is forty-odd Overpass
-queries, one per street name. That does not work: a case-insensitive regex on
-`name` across the city box is expensive, the public instance answers about
-half of them with a 504, and retrying politely still takes longer than the
-data is worth.
-
-So streets are fetched once, in a single query whose regex is the alternation
-of every name the build actually needs, and the rest -- which ways are really
-"Gibson", where Gibson meets Carlisle -- is computed here from the geometry.
+Everything here reads from the local extract (see ojo/extract.py). There is
+no network call in this module and no rate limit to respect, which is the
+whole reason the extract exists.
 
 Junctions are found by exact coordinate match. Two OpenStreetMap ways that
 cross at an intersection share a node, and a shared node is the same
 coordinate to the last decimal place in both ways, so comparing rounded
-vertices finds junctions without needing node ids or a spatial index.
+vertices finds junctions without needing node ids or a spatial index. The
+result is checkable: the junctions this computes for Albuquerque land within
+about 10 m of the camera nodes volunteers mapped at the same intersections.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from .config import CITY_BBOX
-from .fetch import overpass
+from .extract import ways_in
 from .geometry import Point
 
 log = logging.getLogger(__name__)
-
-DRIVABLE = "motorway|trunk|primary|secondary|tertiary|residential|unclassified|motorway_link|trunk_link|primary_link|secondary_link"
 
 #: Coordinate rounding for junction detection. Seven decimal places is about a
 #: centimetre -- far tighter than any real road, and exactly how OSM stores a
@@ -75,39 +68,14 @@ class RoadNetwork:
         )
 
 
-#: Overpass matches bytes, so a stem taken from the city's accent-free list
-#: ("Montano", "Cesar") never matches the accented name OpenStreetMap stores
-#: ("Montaño", "César"). Each letter that might carry an accent becomes a
-#: character class instead.
-ACCENTS = {
-    "a": "aáàâä", "e": "eéèêë", "i": "iíìîï", "o": "oóòôö",
-    "u": "uúùûü", "n": "nñ", "c": "cç",
-}
+def fetch(city: str, names: Iterable[str] | None = None) -> RoadNetwork:
+    """Every named drivable way in `city`.
 
-
-def accent_tolerant(stem: str) -> str:
-    """A regex for `stem` that matches its accented spellings too."""
-    out = []
-    for char in stem:
-        expanded = ACCENTS.get(char.lower())
-        out.append(f"[{expanded}]" if expanded else re.escape(char))
-    return "".join(out)
-
-
-def fetch(city: str, names: Iterable[str]) -> RoadNetwork:
-    """Download every drivable way in `city` whose name starts with one of `names`."""
-    south, west, north, east = CITY_BBOX[city]
-    stems = sorted({n.strip() for n in names if n and n.strip()})
-    if not stems:
-        raise ValueError("no street names requested")
-    pattern = "^(" + "|".join(accent_tolerant(s) for s in stems) + ")"
-    query = (
-        f"[out:json][timeout:180];"
-        f'way["highway"~"^({DRIVABLE})$"]["name"~"{pattern}",i]'
-        f"({south},{west},{north},{east});"
-        f"out geom tags;"
-    )
-    elements = [w for w in overpass(query).get("elements", []) if len(w.get("geometry", [])) > 1]
-    lines = [[(n["lat"], n["lon"]) for n in w["geometry"]] for w in elements]
-    log.info("%s: %d ways for %d name stems", city, len(elements), len(stems))
-    return RoadNetwork(city=city, ways=elements, lines=lines)
+    `names` is accepted and ignored. It mattered when each name cost a
+    request; now the whole city is already in memory, and filtering by name
+    is a list comprehension in the caller.
+    """
+    ways = ways_in(CITY_BBOX[city])
+    lines = [[(lat, lon) for lat, lon in w["geometry"]] for w in ways]
+    log.info("%s: %d named drivable ways", city, len(ways))
+    return RoadNetwork(city=city, ways=ways, lines=lines)

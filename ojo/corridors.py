@@ -123,16 +123,13 @@ def _maxspeed_near(point: Point, lines: list[list[Point]], ways: list[dict[str, 
 def build_santa_fe() -> tuple[list[Corridor], dict[str, Any]]:
     """Every curated Santa Fe location, as drawable corridors.
 
-    One road download for the whole city, then the matching is local -- same
-    shape as the Albuquerque build, and it keeps the number of Overpass
-    requests in a full build down to single figures.
+    The whole city's road network comes from the local extract, so the
+    matching below is pure computation -- same shape as the Albuquerque build.
     """
     spec = yaml.safe_load((DATA_DIR / "santa_fe.yaml").read_text())
     corridors: list[Corridor] = []
 
-    stems = {e["street"].split()[0] for e in spec["locations"]}
-    stems |= {e["intersection_with"].split()[0] for e in spec["locations"] if e.get("intersection_with")}
-    network = fetch_network("Santa Fe", stems)
+    network = fetch_network("Santa Fe")
 
     def indices(name: str) -> list[int]:
         wanted = normalise_street(name)

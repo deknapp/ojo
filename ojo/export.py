@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import yaml
@@ -28,6 +28,13 @@ from .geometry import distance_m
 
 log = logging.getLogger(__name__)
 
+def _json_default(value: Any) -> str:
+    """YAML gives back real dates; JSON wants strings."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    raise TypeError(f"not JSON serialisable: {type(value).__name__}")
+
+
 #: An OSM-mapped camera this close to an officially published corridor is the
 #: same camera seen twice. The city's record wins, and the duplicate is
 #: dropped rather than drawn as a second enforcement zone.
@@ -35,10 +42,22 @@ DUPLICATE_RADIUS_M = 250.0
 
 
 def deduplicate(official: list[Corridor], community: list[Corridor]) -> tuple[list[Corridor], int]:
-    """Drop community-mapped cameras that an official list already covers."""
+    """Drop community-mapped cameras that an official list already covers.
+
+    Compared against the official corridor's whole geometry, not its anchor.
+    "Gibson between Carlisle and San Mateo" is anchored at the midpoint, and
+    the camera it describes sits at one end, 800 m away -- an anchor-only test
+    calls that a different camera and draws Gibson twice.
+    """
     kept, dropped = [], 0
     for corridor in community:
-        if any(distance_m(corridor.point, other.point) <= DUPLICATE_RADIUS_M for other in official):
+        covered = any(
+            distance_m(corridor.point, vertex) <= DUPLICATE_RADIUS_M
+            for other in official
+            for line in other.lines
+            for vertex in line
+        )
+        if covered:
             dropped += 1
             continue
         kept.append(corridor)
@@ -52,9 +71,14 @@ def build_all() -> dict[str, Any]:
     santa_fe, spec = build_santa_fe()
     abq, unresolved = albuquerque.build()
 
+    # The city boxes overlap along Coors and the Bypass, so a camera there is
+    # returned for both cities. Deduplicating the community layer against
+    # itself first stops one camera being drawn as two corridors.
     community: list[Corridor] = []
     for city in ("Rio Rancho", "Albuquerque"):
-        community.extend(osm_cameras.build(city))
+        found = osm_cameras.build(city)
+        found, _ = deduplicate(community, found)
+        community.extend(found)
     community, duplicates = deduplicate(santa_fe + abq, community)
 
     corridors = santa_fe + abq + community
@@ -92,13 +116,14 @@ def write(payload: dict[str, Any]) -> None:
         feature["properties"]["schools_nearby"] = getattr(corridor, "schools_nearby", [])
         features.append(feature)
     (SITE_DATA_DIR / "corridors.geojson").write_text(
-        json.dumps({"type": "FeatureCollection", "features": features}, separators=(",", ":"))
+        json.dumps({"type": "FeatureCollection", "features": features}, separators=(",", ":"), default=_json_default)
     )
 
     (SITE_DATA_DIR / "schools.geojson").write_text(
         json.dumps(
             {"type": "FeatureCollection", "features": [s.as_feature() for s in payload["schools"]]},
             separators=(",", ":"),
+            default=_json_default,
         )
     )
 
@@ -118,6 +143,7 @@ def write(payload: dict[str, Any]) -> None:
                 },
             },
             indent=1,
+            default=_json_default,
         )
     )
     log.info("wrote %s", SITE_DATA_DIR)

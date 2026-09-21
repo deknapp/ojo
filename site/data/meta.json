@@ -1,0 +1,96 @@
+{
+ "built": "2026-09-20",
+ "counts": {
+  "santa_fe": 7,
+  "albuquerque": 39,
+  "community": 27,
+  "duplicates_dropped": 37,
+  "schools": 308,
+  "corridors_near_a_school": 10
+ },
+ "school_proximity_m": 300.0,
+ "unresolved": [
+  "Unser at Flor Del Sol just north of Dellyne (northbound), live 8/01/2022. [Unser does not meet ['Flor Del Sol']]"
+ ],
+ "jurisdictions": [
+  {
+   "name": "Santa Fe",
+   "devices": "6 relocatable trailers",
+   "publishes_locations": false,
+   "how_locations_are_known": "Press coverage and SFPD Facebook posts. The ordinance requires no publication at all, and the Facebook page cannot be read without an account, so the entries here are hand-curated from reporting and carry the date that reporting is good for.",
+   "enforcement": [
+    "speed",
+    "noise"
+   ],
+   "source": "https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf"
+  },
+  {
+   "name": "Albuquerque",
+   "devices": "fixed poles",
+   "publishes_locations": true,
+   "how_locations_are_known": "The city publishes every location with its direction of travel and the date it went live, and keeps the list current. This is what a city choosing to be legible looks like.",
+   "enforcement": [
+    "speed"
+   ],
+   "source": "https://www.cabq.gov/automated-speed-enforcement"
+  },
+  {
+   "name": "Rio Rancho",
+   "devices": "fixed poles",
+   "publishes_locations": false,
+   "how_locations_are_known": "Not published by the city. Every Rio Rancho corridor here was mapped by OpenStreetMap volunteers, most of them in a single December 2025 survey, and each carries its node id and last-edit date so you can judge its age.",
+   "enforcement": [
+    "speed"
+   ],
+   "source": "https://www.openstreetmap.org/"
+  }
+ ],
+ "santa_fe": {
+  "program": {
+   "jurisdiction": "Santa Fe",
+   "authority": "Santa Fe Traffic Operations Program (STOP), SFCC 1987 Section 24-4",
+   "operator": "Santa Fe Police Department",
+   "vendor": "Jenoptik Smart Mobility Solutions, LLC",
+   "device_type": "relocatable trailer",
+   "unit_count": 6,
+   "launched": "2026-09-01",
+   "grace_period_ends": "2026-10-01",
+   "location_publication": "SFPD Facebook page and posted street signs. No open-data feed, no API, and no ordinance requirement to publish. The Facebook page is login-walled, so it cannot be read programmatically.",
+   "sources": [
+    {
+     "url": "https://www.jenoptik.us/news/press-releases/2026/07/22/mobile-speed-and-noise-enforcement-systems-in-santa-fe-new-mexico",
+     "retrieved": "2026-09-20",
+     "note": "vendor announcement; six mobile trailers, placement by complaints + crash data"
+    },
+    {
+     "url": "https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html",
+     "retrieved": "2026-09-20",
+     "note": "launch date, grace period, and the block-level location list below"
+    }
+   ]
+  },
+  "penalties": {
+   "source": {
+    "url": "https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf",
+    "section": "SFCC 24-4.5(H)",
+    "retrieved": "2026-09-20"
+   },
+   "speed": {
+    "default": {
+     "cited_above_mph_over": 10,
+     "first_offense_usd": 50,
+     "repeat_within_2y_usd": 100
+    },
+    "school_or_construction_zone": {
+     "cited_above_mph_over": 5,
+     "first_offense_usd": 100,
+     "repeat_within_2y_usd": 150
+    }
+   },
+   "noise": {
+    "first_offense_usd": 500,
+    "limit_reference": "SFCC 10-2.9 (Motor Vehicle Noise)"
+   }
+  }
+ }
+}

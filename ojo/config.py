@@ -28,7 +28,13 @@ CITY_BBOX = {
     "Rio Rancho": (35.19, -106.80, 35.36, -106.55),
 }
 
-#: Overpass endpoints, tried in order. The main instance rate-limits hard and
+#: The whole New Mexico road network, published daily. One file instead of
+#: forty API calls -- see ojo/extract.py for why this project moved off the
+#: Overpass API entirely.
+EXTRACT_URL = "https://download.geofabrik.de/north-america/us/new-mexico-latest.osm.pbf"
+
+#: Overpass endpoints, kept for reference and no longer used by the build.
+#: Tried in order. The main instance rate-limits hard and
 #: will refuse connections outright for a while if you rebuild from a cold
 #: cache, so a build needs somewhere else to go.
 #:

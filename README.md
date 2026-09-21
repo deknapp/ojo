@@ -70,8 +70,12 @@ ojo build     # refresh every source, write site/data/
 ojo serve     # serve site/ at http://127.0.0.1:8000
 ```
 
-`ojo build` caches every remote response under `.cache/`, so a rebuild is cheap
-and the exact bytes behind a claim are still on disk when someone asks.
+The first `ojo build` downloads the 134 MB Geofabrik extract of New Mexico into
+`.cache/` and every later build reads it locally — the whole state parses in
+about three and a half seconds. Remote responses are cached alongside it, so a
+rebuild is cheap and the exact bytes behind a claim are still on disk when
+someone asks. [docs/sourcing.md](docs/sourcing.md) explains why this reads a
+file rather than calling the Overpass API.
 
 ## Where the data comes from
 
@@ -80,7 +84,7 @@ and the exact bytes behind a claim are still on disk when someone asks.
 | [City of Albuquerque][abq] | 40 locations, direction, activation date | Official, current, kept up to date |
 | [Santa Fe New Mexican][sfnm] | Santa Fe's 5 block-level locations | Reporting; dated, not a feed |
 | [Ordinance / Bill 2025-6][bill] | Thresholds, fines, program rules | The law itself |
-| [OpenStreetMap][osm] | Road geometry, speed limits, Rio Rancho cameras | Community; ages unevenly |
+| [OpenStreetMap][osm] (Geofabrik extract) | Road geometry, speed limits, Rio Rancho cameras | Community; ages unevenly |
 | [NCES][nces] | 308 school locations | Federal, authoritative for location only |
 
 Full reasoning, including the sources that turned out to be useless and why, is

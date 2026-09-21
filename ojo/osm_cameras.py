@@ -18,41 +18,21 @@ from typing import Any
 
 from .config import CITY_BBOX, FIXED_CORRIDOR_HALF_LENGTH_M
 from .corridors import Corridor, parse_maxspeed
-from .fetch import overpass
+from .network import fetch as fetch_network
+from .extract import cameras_in
 from .geometry import Point, snap_to_lines, walk_along
 
 log = logging.getLogger(__name__)
 
 
 def _nodes(city: str) -> list[dict[str, Any]]:
-    south, west, north, east = CITY_BBOX[city]
-    query = (
-        f"[out:json][timeout:120];"
-        f'node["highway"="speed_camera"]({south},{west},{north},{east});'
-        f"out meta;"
-    )
-    return overpass(query).get("elements", [])
+    return cameras_in(CITY_BBOX[city])
 
 
-def _roads_near_all(city: str, radius_m: float) -> tuple[list[list[Point]], list[dict[str, Any]]]:
-    """Drivable ways near ANY camera node in the city, in one query.
-
-    Asking Overpass once per camera means sixty-odd requests and a rate limit;
-    `around.cameras` takes the whole node set at once, so one request does the
-    work and the public instance stays willing to talk to us.
-    """
-    south, west, north, east = CITY_BBOX[city]
-    query = (
-        f"[out:json][timeout:180];"
-        f'node["highway"="speed_camera"]({south},{west},{north},{east})->.cameras;'
-        f'way(around.cameras:{int(radius_m)})'
-        f'["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified)$"];'
-        f"out geom tags;"
-    )
-    elements = overpass(query).get("elements", [])
-    lines = [[(n["lat"], n["lon"]) for n in w.get("geometry", [])] for w in elements]
-    keep = [(line, w) for line, w in zip(lines, elements) if len(line) > 1]
-    return [line for line, _ in keep], [w for _, w in keep]
+def _roads(city: str) -> tuple[list[list[Point]], list[dict[str, Any]]]:
+    """Every named drivable way in the city, from the local extract."""
+    network = fetch_network(city)
+    return network.lines, network.ways
 
 
 def build(city: str) -> list[Corridor]:
@@ -61,7 +41,7 @@ def build(city: str) -> list[Corridor]:
     nodes = _nodes(city)
     if not nodes:
         return corridors
-    lines, ways = _roads_near_all(city, 60.0)
+    lines, ways = _roads(city)
     if not lines:
         log.warning("no roads near any camera in %s", city)
         return corridors

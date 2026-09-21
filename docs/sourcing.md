@@ -79,17 +79,40 @@ mean.
 under IPRA, and was considered and dropped: weeks of waiting for something the
 published sources approximate today.
 
-## Two mistakes worth recording
+## Why the build reads a file instead of calling an API
 
-**Overpass.** An early check used a mirror that answered every query with an
-empty result — including a control query for traffic signals in central Santa
-Fe, which cannot be zero. It briefly looked as though OpenStreetMap had no
-camera data in New Mexico at all. It has 66 nodes. Every Overpass query in
-this repository is now issued against the main endpoint, and the lesson is
-that a query returning nothing should be tested against something that must
-return something.
+Road geometry originally came from the Overpass API. It does not any more, and
+the reasons are worth keeping:
 
-**Nominatim.** Geocoding `7500 Airport Road, Santa Fe` returns a point on *Old
+1. **A mirror answered every query with an empty result** — including a
+   control query for traffic signals in central Santa Fe, where the true
+   answer is 294. For a while it looked as though OpenStreetMap had no camera
+   data in New Mexico at all. It has 66 nodes. An empty result is
+   indistinguishable from "there are no cameras here", which is the most
+   dangerous failure this project can have. *Always run a control query that
+   must return something.*
+2. **Rebuilding from a cold cache got this address rate-limited, then refused
+   outright.** A build needs a few dozen queries. That is enough.
+3. **Every public mirror was busy** at exactly the wrong moment, and a build
+   that depends on somebody else's spare capacity is not a build.
+
+So the road network now comes from the [Geofabrik New Mexico extract][geofabrik]
+— one 134 MB file, downloaded once, parsed with pyosmium in about three and a
+half seconds for the whole state. The build is reproducible offline, there is
+no rate limit, and the camera count from the extract (66) matches exactly what
+Overpass reported before it stopped answering.
+
+The lesson generalises: a rate limit usually means the tool is asking the
+wrong question. Forty queries for a road network that changes weekly should
+have been one file from the start.
+
+Nominatim is still called, for a few dozen addresses at one request per second
+with every result cached, because there is no comparable offline substitute at
+this scale.
+
+## The other mistake worth recording
+
+Geocoding `7500 Airport Road, Santa Fe` returns a point on *Old
 Airport Road*, a different street. Every location in this project is therefore
 snapped onto a way whose name really is the announced street; that snap moves
 the Airport Road corridor 101 m onto the correct road. Similar traps: the city
@@ -108,3 +131,4 @@ available here that the geometry is right.
 [bill]: https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf
 [103]: https://law.justia.com/codes/new-mexico/2018/chapter-66/article-7/section-66-7-103.1/
 [abq]: https://www.cabq.gov/automated-speed-enforcement
+[geofabrik]: https://download.geofabrik.de/north-america/us/new-mexico.html

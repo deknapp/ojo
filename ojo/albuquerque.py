@@ -205,7 +205,7 @@ def build(limit: int | None = None) -> tuple[list[Corridor], list[str]]:
     alias = _aliases()
     announcements, unresolved = parse(fetch_list())
     announcements = announcements[:limit]
-    network = fetch_network("Albuquerque", street_names(announcements, alias))
+    network = fetch_network("Albuquerque")
     corridors: list[Corridor] = []
 
     for announcement in announcements:

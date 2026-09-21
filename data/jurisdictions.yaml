@@ -1,0 +1,33 @@
+# What each city publishes, and what that means for how much you can trust the
+# map there. This is the comparison the site is really making.
+jurisdictions:
+  - name: Santa Fe
+    devices: 6 relocatable trailers
+    publishes_locations: false
+    how_locations_are_known: >-
+      Press coverage and SFPD Facebook posts. The ordinance requires no
+      publication at all, and the Facebook page cannot be read without an
+      account, so the entries here are hand-curated from reporting and carry
+      the date that reporting is good for.
+    enforcement: [speed, noise]
+    source: https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf
+
+  - name: Albuquerque
+    devices: fixed poles
+    publishes_locations: true
+    how_locations_are_known: >-
+      The city publishes every location with its direction of travel and the
+      date it went live, and keeps the list current. This is what a city
+      choosing to be legible looks like.
+    enforcement: [speed]
+    source: https://www.cabq.gov/automated-speed-enforcement
+
+  - name: Rio Rancho
+    devices: fixed poles
+    publishes_locations: false
+    how_locations_are_known: >-
+      Not published by the city. Every Rio Rancho corridor here was mapped by
+      OpenStreetMap volunteers, most of them in a single December 2025 survey,
+      and each carries its node id and last-edit date so you can judge its age.
+    enforcement: [speed]
+    source: https://www.openstreetmap.org/

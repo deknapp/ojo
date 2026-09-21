@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ojo — automated enforcement in northern New Mexico</title>
+<meta name="description" content="Where the speed and noise cameras are in Santa Fe, Albuquerque and Rio Rancho, how confident that is, and what each corridor actually costs you.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1c1a17; --muted: #6a645c;
+  --line: #e2ddd4; --accent: #9c3f1f; --warn: #a8720c; --ok: #3d6b4a;
+  --community: #5a6b8c; --shadow: 0 1px 3px rgba(0,0,0,.08), 0 6px 18px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17151300; --bg: #171513; --panel: #201d1a; --ink: #ece7df; --muted: #a49c91;
+    --line: #34302b; --accent: #e0774a; --warn: #d9a441; --ok: #79b48d; --community: #90a4c8;
+    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171513; --panel: #201d1a; --ink: #ece7df; --muted: #a49c91;
+  --line: #34302b; --accent: #e0774a; --warn: #d9a441; --ok: #79b48d; --community: #90a4c8;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.55 ui-serif, Georgia, "Iowan Old Style", serif;
+  -webkit-text-size-adjust: 100%;
+}
+header { padding: 28px 16px 8px; max-width: 1180px; margin: 0 auto; }
+h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); margin: 0 0 .25em; letter-spacing: -.01em; }
+h1 small { display: block; font-size: .5em; font-weight: 400; color: var(--muted); letter-spacing: .02em; text-transform: uppercase; margin-bottom: .5em; }
+.lede { color: var(--muted); max-width: 62ch; margin: 0 0 1em; }
+main { max-width: 1180px; margin: 0 auto; padding: 0 16px 64px; }
+.layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) { .layout { grid-template-columns: 360px 1fr; align-items: start; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 16px; }
+#map { height: 62vh; min-height: 420px; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+@media (max-width: 899px) { #map { height: 52vh; } }
+h2 { font-size: 1.02rem; margin: 0 0 .6em; letter-spacing: .01em; }
+h3 { font-size: .9rem; margin: 1.4em 0 .4em; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+label { display: block; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 4px; }
+input[type=text] {
+  width: 100%; padding: 9px 10px; font: inherit; font-size: .95rem; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  margin-top: 12px; width: 100%; padding: 10px; font: inherit; font-weight: 600;
+  background: var(--accent); color: #fff; border: 0; border-radius: 6px; cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+button[disabled] { opacity: .55; cursor: progress; }
+.status { font-size: .88rem; color: var(--muted); margin-top: 10px; min-height: 1.2em; }
+.hit { border-left: 3px solid var(--accent); padding: 8px 0 8px 11px; margin: 12px 0; }
+.hit .where { font-weight: 600; }
+.hit .detail { font-size: .86rem; color: var(--muted); }
+.threshold { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }
+.school { color: var(--warn); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 22px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: .4em; }
+th, td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; }
+.note { font-size: .84rem; color: var(--muted); }
+.note a, .prose a { color: var(--accent); }
+.prose { max-width: 68ch; margin-top: 40px; }
+.prose p { margin: 0 0 1em; }
+.pill { display: inline-block; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.leaflet-popup-content { font: 14px/1.5 ui-serif, Georgia, serif; }
+.leaflet-popup-content b { font-size: 15px; }
+footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 16px; font-size: .84rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1><small>Ojo</small>Where the cameras are, and what they cost</h1>
+  <p class="lede">Santa Fe's automated speed and noise enforcement went live on 1 September 2026. Warnings end and
+  real citations start on <b>1 October</b>. This map shows every enforcement corridor that can be sourced in
+  Santa Fe, Albuquerque and Rio Rancho — with, for each one, the speed that actually triggers a ticket and the
+  date the location was last confirmed.</p>
+</header>
+
+<main>
+<div class="layout">
+  <div>
+    <div class="panel">
+      <h2>Plan a drive</h2>
+      <label for="from">Start</label>
+      <input type="text" id="from" placeholder="e.g. 1050 Old Pecos Trail, Santa Fe" autocomplete="off">
+      <label for="to">Destination</label>
+      <input type="text" id="to" placeholder="e.g. Santa Fe Place Mall" autocomplete="off">
+      <button id="go">Show enforcement on this route</button>
+      <div class="status" id="status"></div>
+      <div id="results"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h2>What triggers a ticket</h2>
+      <table id="penalties"></table>
+      <p class="note" id="penalty-note"></p>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h2>How much to trust each city</h2>
+      <div id="jurisdictions"></div>
+    </div>
+  </div>
+
+  <div>
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+    <p class="note" id="buildline"></p>
+  </div>
+</div>
+
+<div class="prose">
+  <h3>Why corridors and not pins</h3>
+  <p>Santa Fe's six units are trailers. They get towed. A pin says <i>the camera is here</i>, which stops being
+  true the moment one moves thirty metres, and a driver who learns to relax between pins has been taught the
+  wrong lesson by the map. What the city actually announces is a block, and what it signs is a zone, so that is
+  what gets drawn — with the date it was last confirmed sitting next to it, because a corridor confirmed in
+  August is a weaker claim than one confirmed this week.</p>
+
+  <h3>The honest answer is to drive the limit</h3>
+  <p>Enforcement goes where crashes and complaints are, which means these corridors are not arbitrary. The
+  useful thing this map can tell you is not where to speed — it is which parts of a drive are the ones where
+  people are getting hurt, and where the margin before a ticket is half what you assume.</p>
+
+  <h3>What is missing</h3>
+  <p id="missing"></p>
+</div>
+
+<footer>
+  <p>Not affiliated with any city or police department, and not legal advice. A corridor here is a claim with a
+  date on it, not a guarantee; the signs by the road are authoritative and this page is not.
+  Source and data: <a href="https://github.com/deknapp/ojo">github.com/deknapp/ojo</a>.
+  Roads and geometry &copy; OpenStreetMap contributors. Routing by
+  <a href="https://project-osrm.org/">OSRM</a>.</p>
+</footer>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLOUR = { "Santa Fe": "#c2410c", "Albuquerque": "#1d4ed8", "Rio Rancho": "#5a6b8c" };
+const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+
+const map = L.map("map", { scrollWheelZoom: false }).setView([35.66, -106.0], 12);
+map.on("click", () => map.scrollWheelZoom.enable());
+L.tileLayer("https://{s}.basemaps.cartocdn.com/" + (dark() ? "dark_all" : "light_all") + "/{z}/{x}/{y}{r}.png", {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+const routeLayer = L.layerGroup().addTo(map);
+let CORRIDORS = null, SCHOOLS = null, META = null;
+
+const fmtDate = (iso) => {
+  if (!iso) return "date unknown";
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+};
+const daysSince = (iso) => iso ? Math.round((Date.now() - new Date(iso + "T12:00:00")) / 864e5) : null;
+
+function threshold(props) {
+  // The ordinance cites above 10 mph over, or above 5 over in a school or
+  // construction zone. Without a posted limit in the data there is no number
+  // to give, and inventing one would be the worst thing this page could do.
+  const school = (props.schools_nearby || []).length > 0;
+  const over = school ? 5 : 10;
+  if (props.maxspeed_mph == null) {
+    return { text: `more than ${over} mph over the posted limit`, number: null, school, over };
+  }
+  return { text: `${props.maxspeed_mph + over} mph`, number: props.maxspeed_mph + over, school, over };
+}
+
+function popupHtml(props) {
+  const t = threshold(props);
+  const age = daysSince(props.last_confirmed);
+  const src = (props.sources || [])[0];
+  return `<b>${props.label}</b><br>
+    <span style="color:#888">${props.jurisdiction} &middot; ${props.status}</span><br><br>
+    Cited at <b>${t.text}</b>${props.maxspeed_mph ? ` (limit ${props.maxspeed_mph})` : ""}<br>
+    ${t.school ? `<span style="color:#a8720c"><b>School nearby</b> — threshold halves to ${t.over} over, fine doubles to $100. Watch for a posted zone.</span><br>` : ""}
+    ${props.maxspeed_mph == null ? `<span style="color:#888">Posted limit not in the data — read the signs.</span><br>` : ""}
+    <br>Last confirmed ${fmtDate(props.last_confirmed)}${age != null ? ` (${age} days ago)` : ""}<br>
+    ${src ? `<a href="${src.url}" target="_blank" rel="noopener">source</a>` : ""}`;
+}
+
+function styleFor(props) {
+  return {
+    color: COLOUR[props.jurisdiction] || "#777",
+    weight: 7,
+    opacity: props.status === "announced" ? 0.55 : 0.85,
+    dashArray: props.status === "community-mapped" ? "9 7" : null,
+    lineCap: "round",
+  };
+}
+
+async function load() {
+  const [c, s, m] = await Promise.all([
+    fetch("data/corridors.geojson").then((r) => r.json()),
+    fetch("data/schools.geojson").then((r) => r.json()),
+    fetch("data/meta.json").then((r) => r.json()),
+  ]);
+  CORRIDORS = c; SCHOOLS = s; META = m;
+
+  L.geoJSON(s, {
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+      radius: 4, color: "#a8720c", weight: 1, fillOpacity: 0.25, fillColor: "#a8720c",
+    }).bindPopup(`<b>${f.properties.name}</b><br><span style="color:#888">School — if a zone is posted here, the
+      threshold is 5 mph over and the fine is $100.</span>`),
+  }).addTo(map);
+
+  const layer = L.geoJSON(c, {
+    style: (f) => styleFor(f.properties),
+    onEachFeature: (f, l) => l.bindPopup(popupHtml(f.properties)),
+  }).addTo(map);
+  map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+
+  renderMeta();
+}
+
+function renderMeta() {
+  const p = META.santa_fe.penalties;
+  document.getElementById("penalties").innerHTML = `
+    <tr><th>Where</th><th>Cited above</th><th>First</th><th>Again within 2y</th></tr>
+    <tr><td>Anywhere else</td><td>${p.speed.default.cited_above_mph_over} mph over</td>
+        <td>$${p.speed.default.first_offense_usd}</td><td>$${p.speed.default.repeat_within_2y_usd}</td></tr>
+    <tr><td>School or construction zone</td><td>${p.speed.school_or_construction_zone.cited_above_mph_over} mph over</td>
+        <td>$${p.speed.school_or_construction_zone.first_offense_usd}</td>
+        <td>$${p.speed.school_or_construction_zone.repeat_within_2y_usd}</td></tr>
+    <tr><td>Vehicle noise</td><td colspan="1">over the limit</td>
+        <td colspan="2">$${p.noise.first_offense_usd}</td></tr>`;
+  document.getElementById("penalty-note").innerHTML =
+    `Santa Fe figures, from the ordinance itself (${p.source.section}) rather than from reporting.
+     <a href="${p.source.url}" target="_blank" rel="noopener">Read it</a>.
+     The noise limit is set by ${p.noise.limit_reference}.`;
+
+  document.getElementById("jurisdictions").innerHTML = META.jurisdictions.map((j) => `
+    <div class="hit" style="border-left-color:${COLOUR[j.name]}">
+      <div class="where">${j.name} <span class="pill">${j.publishes_locations ? "publishes locations" : "does not publish"}</span></div>
+      <div class="detail">${j.devices}. ${j.how_locations_are_known}</div>
+    </div>`).join("");
+
+  document.getElementById("legend").innerHTML =
+    Object.entries(COLOUR).map(([k, v]) => `<span><i style="background:${v}"></i>${k}</span>`).join("") +
+    `<span><i style="background:#777"></i>dashed = community-mapped, not official</span>` +
+    `<span><i style="background:#a8720c"></i>school</span>`;
+
+  const c = META.counts;
+  document.getElementById("buildline").textContent =
+    `${c.santa_fe + c.albuquerque + c.community} corridors and ${c.schools} schools, built ${fmtDate(META.built)}. ` +
+    `${c.corridors_near_a_school} corridors run past a school, where the threshold halves.`;
+
+  document.getElementById("missing").innerHTML =
+    (META.unresolved.length
+      ? `${META.unresolved.length} published camera location could not be matched to a road and is <b>not drawn</b>: ` +
+        META.unresolved.map((u) => `<i>${u.split(" [")[0]}</i>`).join("; ") + ". "
+      : "") +
+    `Santa Fe's trailers move and the city is under no obligation to say when, so treat every Santa Fe corridor as
+     "last seen", not "currently there". Construction zones carry the same halved threshold as school zones and
+     are not mapped here at all. Speed limits come from OpenStreetMap, which has them on roughly a fifth of Santa
+     Fe's streets — where the limit is missing, this page says so instead of guessing.`;
+}
+
+// ---- route planning -------------------------------------------------------
+// Everything here runs in the browser against public services. No route, no
+// address and no location is sent anywhere this page controls, because this
+// page has no backend to send it to.
+
+async function geocode(q) {
+  const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+    encodeURIComponent(q + (/(NM|New Mexico)/i.test(q) ? "" : ", New Mexico"));
+  const r = await fetch(url, { headers: { "Accept": "application/json" } });
+  const j = await r.json();
+  return j.length ? [parseFloat(j[0].lat), parseFloat(j[0].lon)] : null;
+}
+
+function metresBetween(a, b) {
+  const R = 6371000, toRad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * toRad;
+  const dLon = (b[1] - a[1]) * toRad * Math.cos(((a[0] + b[0]) / 2) * toRad);
+  return Math.hypot(dLat, dLon) * R;
+}
+
+// A route "crosses" a corridor when any route vertex comes within this far of
+// any corridor vertex. Generous on purpose: the corridor is already an
+// approximation and a near miss on a divided road is still the same stretch.
+const CROSS_M = 60;
+
+function corridorsOnRoute(coords) {
+  const hits = [];
+  for (const f of CORRIDORS.features) {
+    const lines = f.geometry.coordinates;
+    let found = false;
+    for (const line of lines) {
+      for (const [lon, lat] of line) {
+        for (const p of coords) {
+          if (metresBetween([lat, lon], p) <= CROSS_M) { found = true; break; }
+        }
+        if (found) break;
+      }
+      if (found) break;
+    }
+    if (found) hits.push(f);
+  }
+  return hits;
+}
+
+async function plan() {
+  const status = document.getElementById("status");
+  const results = document.getElementById("results");
+  const button = document.getElementById("go");
+  const from = document.getElementById("from").value.trim();
+  const to = document.getElementById("to").value.trim();
+  results.innerHTML = "";
+  if (!from || !to) { status.textContent = "Enter a start and a destination."; return; }
+
+  button.disabled = true;
+  status.textContent = "Looking up addresses…";
+  try {
+    const a = await geocode(from);
+    if (!a) throw new Error(`Could not find “${from}”.`);
+    await new Promise((r) => setTimeout(r, 1100));  // Nominatim asks for 1 req/sec
+    const b = await geocode(to);
+    if (!b) throw new Error(`Could not find “${to}”.`);
+
+    status.textContent = "Finding a route…";
+    const url = `https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`;
+    const j = await (await fetch(url)).json();
+    if (!j.routes || !j.routes.length) throw new Error("No driving route between those points.");
+    const route = j.routes[0];
+    const coords = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+
+    routeLayer.clearLayers();
+    L.polyline(coords, { color: dark() ? "#ece7df" : "#1c1a17", weight: 4, opacity: 0.75 }).addTo(routeLayer);
+    L.circleMarker(a, { radius: 6, color: "#3d6b4a", fillOpacity: 1 }).addTo(routeLayer);
+    L.circleMarker(b, { radius: 6, color: "#9c3f1f", fillOpacity: 1 }).addTo(routeLayer);
+
+    const hits = corridorsOnRoute(coords);
+    for (const f of hits) {
+      L.geoJSON(f, { style: { color: "#e11d48", weight: 11, opacity: 0.9, lineCap: "round" } }).addTo(routeLayer);
+    }
+    map.fitBounds(L.polyline(coords).getBounds(), { padding: [30, 30] });
+
+    const km = (route.distance / 1000).toFixed(1);
+    const mins = Math.round(route.duration / 60);
+    status.innerHTML = `${(km * 0.621371).toFixed(1)} mi, about ${mins} min. ` +
+      (hits.length
+        ? `<b>${hits.length} enforcement corridor${hits.length > 1 ? "s" : ""}</b> on this route.`
+        : `No known enforcement corridor on this route — which means none is <i>sourced</i> here, not that none exists.`);
+
+    results.innerHTML = hits.map((f) => {
+      const p = f.properties, t = threshold(p), age = daysSince(p.last_confirmed);
+      return `<div class="hit">
+        <div class="where">${p.label}</div>
+        <div class="detail">
+          ${p.jurisdiction} &middot; cited at <span class="threshold">${t.text}</span>
+          ${p.maxspeed_mph ? ` (posted ${p.maxspeed_mph})` : ""}<br>
+          ${t.school ? `<span class="school">School nearby — ${t.over} over, $100.</span><br>` : ""}
+          ${p.maxspeed_mph == null ? "Posted limit not in the data — read the signs.<br>" : ""}
+          Last confirmed ${fmtDate(p.last_confirmed)}${age != null ? ` · ${age} days ago` : ""}
+        </div></div>`;
+    }).join("");
+  } catch (e) {
+    status.textContent = e.message || "Something went wrong.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.getElementById("go").addEventListener("click", plan);
+for (const id of ["from", "to"]) {
+  document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") plan(); });
+}
+load().catch((e) => { document.getElementById("status").textContent = "Could not load data: " + e.message; });
+</script>
+</body>
+</html>

@@ -25,7 +25,8 @@ from typing import Any
 import yaml
 
 from .config import CITY_BBOX, CORRIDOR_HALF_LENGTH_M, DATA_DIR
-from .fetch import geocode, overpass
+from .fetch import geocode
+from .network import RoadNetwork, fetch as fetch_network
 from .geometry import Point, snap_to_lines, walk_along
 
 log = logging.getLogger(__name__)
@@ -73,11 +74,6 @@ class Corridor:
         }
 
 
-def _bbox_clause(city: str) -> str:
-    south, west, north, east = CITY_BBOX[city]
-    return f"({south},{west},{north},{east})"
-
-
 _DIRECTIONALS = ("north", "south", "east", "west", "n", "s", "e", "w", "nw", "ne", "sw", "se")
 
 
@@ -95,66 +91,6 @@ def normalise_street(name: str) -> str:
     while tokens and tokens[0] in _DIRECTIONALS:
         tokens = tokens[1:]
     return " ".join(tokens)
-
-
-def _ways_named(street: str, city: str) -> tuple[list[list[Point]], list[dict[str, Any]]]:
-    """Every drivable way that IS `street`, with geometry.
-
-    Overpass is asked with a loose substring regex, because an exact match on
-    "Zia Road" returns nothing at all -- it is mapped as West and East Zia
-    Road. The results are then filtered exactly, on the normalised name, so
-    the looseness never reaches the output.
-    """
-    escaped = street.replace('"', '\\"')
-    query = (
-        f'[out:json][timeout:120];'
-        f'way["name"~"{escaped}",i]["highway"]{_bbox_clause(city)};'
-        f"out geom tags;"
-    )
-    wanted = normalise_street(street)
-    elements = [
-        w for w in overpass(query).get("elements", [])
-        if normalise_street(w.get("tags", {}).get("name", "")) == wanted
-    ]
-    lines = [[(n["lat"], n["lon"]) for n in w.get("geometry", [])] for w in elements]
-    keep = [(line, w) for line, w in zip(lines, elements) if len(line) > 1]
-    return [line for line, _ in keep], [w for _, w in keep]
-
-
-def _intersection_point(street: str, other: str, city: str) -> Point | None:
-    """The node two named streets share. None if they do not meet in OSM.
-
-    Both sides are name-filtered the same way `_ways_named` filters, so
-    "Airport Road at Constellation" cannot quietly resolve against Old Airport
-    Road.
-    """
-    a, b = street.replace('"', '\\"'), other.replace('"', '\\"')
-    query = (
-        f'[out:json][timeout:120];'
-        f'way["name"~"{a}",i]["highway"]{_bbox_clause(city)}->.wa;'
-        f'way["name"~"{b}",i]["highway"]{_bbox_clause(city)}->.wb;'
-        f"(.wa; .wb;);out ids tags;"
-        f"node(w.wa)(w.wb);out;"
-    )
-    elements = overpass(query).get("elements", [])
-    ids = {
-        side: {
-            w["id"] for w in elements
-            if w["type"] == "way" and normalise_street(w.get("tags", {}).get("name", "")) == normalise_street(name)
-        }
-        for side, name in (("a", street), ("b", other))
-    }
-    if not ids["a"] or not ids["b"]:
-        return None
-    nodes = [n for n in elements if n["type"] == "node"]
-    if not nodes:
-        return None
-    # Several shared nodes means a dual carriageway or a slip lane. Their mean
-    # is inside the junction, which is the right anchor for a corridor.
-    return (
-        sum(n["lat"] for n in nodes) / len(nodes),
-        sum(n["lon"] for n in nodes) / len(nodes),
-    )
 
 
 def parse_maxspeed(value: str | None) -> int | None:
@@ -185,19 +121,33 @@ def _maxspeed_near(point: Point, lines: list[list[Point]], ways: list[dict[str, 
 
 
 def build_santa_fe() -> tuple[list[Corridor], dict[str, Any]]:
-    """Every curated Santa Fe location, as drawable corridors."""
+    """Every curated Santa Fe location, as drawable corridors.
+
+    One road download for the whole city, then the matching is local -- same
+    shape as the Albuquerque build, and it keeps the number of Overpass
+    requests in a full build down to single figures.
+    """
     spec = yaml.safe_load((DATA_DIR / "santa_fe.yaml").read_text())
     corridors: list[Corridor] = []
 
+    stems = {e["street"].split()[0] for e in spec["locations"]}
+    stems |= {e["intersection_with"].split()[0] for e in spec["locations"] if e.get("intersection_with")}
+    network = fetch_network("Santa Fe", stems)
+
+    def indices(name: str) -> list[int]:
+        wanted = normalise_street(name)
+        return network.indices_where(lambda osm, w=wanted: normalise_street(osm) == w)
+
     for entry in spec["locations"]:
         street = entry["street"]
-        lines, ways = _ways_named(street, "Santa Fe")
+        own = indices(street)
+        lines, ways = network.geometry(own)
         if not lines:
             log.warning("no OSM way named %r; skipping %s", street, entry["id"])
             continue
 
         if entry.get("intersection_with"):
-            anchor = _intersection_point(street, entry["intersection_with"], "Santa Fe")
+            anchor = network.junction(own, indices(entry["intersection_with"]))
             if anchor is None:
                 log.warning("no intersection of %r and %r", street, entry["intersection_with"])
                 continue

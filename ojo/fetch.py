@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import logging
 import time
 import urllib.parse
@@ -46,12 +47,31 @@ def get(url: str, data: dict | None = None, timeout: int = 180) -> bytes:
         return response.read()
 
 
-def overpass(query: str, *, retries: int = 3) -> dict:
+def overpass_slot_wait() -> int:
+    """Seconds until the public instance will accept another query.
+
+    Overpass publishes its own rate limiter at /api/status. Reading it and
+    waiting the stated time is enormously better behaved than retrying into a
+    429, and it is the difference between a build that finishes and a build
+    that gets the IP throttled.
+    """
+    try:
+        status = get(OVERPASS_URL.replace("/interpreter", "/status"), timeout=30).decode()
+    except Exception:  # noqa: BLE001 - status is advisory; fall back to a fixed wait
+        return 30
+    if "slots available now" in status:
+        return 0
+    waits = [int(m) for m in re.findall(r"in (\d+) seconds", status)]
+    return min(waits) + 2 if waits else 30
+
+
+def overpass(query: str, *, retries: int = 4) -> dict:
     """Run an Overpass QL query.
 
     Retries exist because the public instance returns 504 under load often
     enough that a single failure would make builds flaky, and a flaky build
-    tempts people to skip the data refresh.
+    tempts people to skip the data refresh. Between attempts it asks the
+    instance when it would like to be called back, rather than guessing.
     """
 
     def produce() -> dict:
@@ -61,8 +81,9 @@ def overpass(query: str, *, retries: int = 3) -> dict:
                 return json.loads(get(OVERPASS_URL, {"data": query}))
             except Exception as exc:  # noqa: BLE001 - retried and re-raised below
                 last = exc
-                log.warning("overpass attempt %d failed: %s", attempt + 1, exc)
-                time.sleep(15 * (attempt + 1))
+                wait = max(overpass_slot_wait(), 10 * (attempt + 1))
+                log.warning("overpass attempt %d failed (%s); waiting %ds", attempt + 1, exc, wait)
+                time.sleep(wait)
         raise RuntimeError(f"overpass failed after {retries} attempts") from last
 
     return cached_json("overpass", query, produce)  # type: ignore[return-value]

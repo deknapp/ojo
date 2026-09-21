@@ -34,12 +34,19 @@ def _nodes(city: str) -> list[dict[str, Any]]:
     return overpass(query).get("elements", [])
 
 
-def _roads_near(point: Point, radius_m: float) -> tuple[list[list[Point]], list[dict[str, Any]]]:
-    """Drivable ways within `radius_m` of a camera node."""
+def _roads_near_all(city: str, radius_m: float) -> tuple[list[list[Point]], list[dict[str, Any]]]:
+    """Drivable ways near ANY camera node in the city, in one query.
+
+    Asking Overpass once per camera means sixty-odd requests and a rate limit;
+    `around.cameras` takes the whole node set at once, so one request does the
+    work and the public instance stays willing to talk to us.
+    """
+    south, west, north, east = CITY_BBOX[city]
     query = (
-        f"[out:json][timeout:120];"
-        f'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified)$"]'
-        f"(around:{int(radius_m)},{point[0]},{point[1]});"
+        f"[out:json][timeout:180];"
+        f'node["highway"="speed_camera"]({south},{west},{north},{east})->.cameras;'
+        f'way(around.cameras:{int(radius_m)})'
+        f'["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified)$"];'
         f"out geom tags;"
     )
     elements = overpass(query).get("elements", [])
@@ -51,15 +58,21 @@ def _roads_near(point: Point, radius_m: float) -> tuple[list[list[Point]], list[
 def build(city: str) -> list[Corridor]:
     """Corridors for every mapped speed camera in `city`."""
     corridors: list[Corridor] = []
-    for node in _nodes(city):
+    nodes = _nodes(city)
+    if not nodes:
+        return corridors
+    lines, ways = _roads_near_all(city, 60.0)
+    if not lines:
+        log.warning("no roads near any camera in %s", city)
+        return corridors
+
+    for node in nodes:
         tags = node.get("tags", {})
         point = (node["lat"], node["lon"])
-        lines, ways = _roads_near(point, 60.0)
-        if not lines:
+        _, distance, index = snap_to_lines(point, lines)
+        if distance > 60.0:
             log.warning("no road within 60 m of OSM node %s", node["id"])
             continue
-
-        _, _, index = snap_to_lines(point, lines)
         street = ways[index].get("tags", {}).get("name", "unnamed road")
         segments = walk_along([lines[index]], point, FIXED_CORRIDOR_HALF_LENGTH_M)
         if not segments:

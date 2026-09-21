@@ -14,7 +14,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #17151300; --bg: #171513; --panel: #201d1a; --ink: #ece7df; --muted: #a49c91;
+    --bg: #171513; --panel: #201d1a; --ink: #ece7df; --muted: #a49c91;
     --line: #34302b; --accent: #e0774a; --warn: #d9a441; --ok: #79b48d; --community: #90a4c8;
     --shadow: 0 1px 3px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
   }
@@ -292,21 +292,28 @@ function metresBetween(a, b) {
 // approximation and a near miss on a divided road is still the same stretch.
 const CROSS_M = 60;
 
+function bounds(points) {
+  let s = 90, w = 180, n = -90, e = -180;
+  for (const [lat, lon] of points) {
+    if (lat < s) s = lat; if (lat > n) n = lat;
+    if (lon < w) w = lon; if (lon > e) e = lon;
+  }
+  return [s, w, n, e];
+}
+
 function corridorsOnRoute(coords) {
+  // Brute force over every corridor vertex against every route vertex is a
+  // few million comparisons on a cross-town drive. A bounding-box reject
+  // first turns that into a few thousand, which matters because this runs on
+  // a phone.
+  const [rs, rw, rn, re] = bounds(coords);
+  const pad = 0.002;  // ~200 m, comfortably more than CROSS_M
   const hits = [];
   for (const f of CORRIDORS.features) {
-    const lines = f.geometry.coordinates;
-    let found = false;
-    for (const line of lines) {
-      for (const [lon, lat] of line) {
-        for (const p of coords) {
-          if (metresBetween([lat, lon], p) <= CROSS_M) { found = true; break; }
-        }
-        if (found) break;
-      }
-      if (found) break;
-    }
-    if (found) hits.push(f);
+    const verts = f.geometry.coordinates.flat().map(([lon, lat]) => [lat, lon]);
+    const [cs, cw, cn, ce] = bounds(verts);
+    if (cn < rs - pad || cs > rn + pad || ce < rw - pad || cw > re + pad) continue;
+    if (verts.some((v) => coords.some((p) => metresBetween(v, p) <= CROSS_M))) hits.push(f);
   }
   return hits;
 }

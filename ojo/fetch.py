@@ -17,7 +17,15 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from .config import CACHE_DIR, NOMINATIM_DELAY_S, NOMINATIM_URL, OVERPASS_URL, USER_AGENT
+from .config import (
+    CACHE_DIR,
+    NOMINATIM_DELAY_S,
+    NOMINATIM_URL,
+    OVERPASS_TIMEOUT_S,
+    OVERPASS_URL,
+    OVERPASS_URLS,
+    USER_AGENT,
+)
 
 log = logging.getLogger(__name__)
 
@@ -77,14 +85,16 @@ def overpass(query: str, *, retries: int = 4) -> dict:
     def produce() -> dict:
         last: Exception | None = None
         for attempt in range(retries):
-            try:
-                return json.loads(get(OVERPASS_URL, {"data": query}))
-            except Exception as exc:  # noqa: BLE001 - retried and re-raised below
-                last = exc
-                wait = max(overpass_slot_wait(), 10 * (attempt + 1))
-                log.warning("overpass attempt %d failed (%s); waiting %ds", attempt + 1, exc, wait)
-                time.sleep(wait)
-        raise RuntimeError(f"overpass failed after {retries} attempts") from last
+            for url in OVERPASS_URLS:
+                try:
+                    return json.loads(get(url, {"data": query}, timeout=OVERPASS_TIMEOUT_S))
+                except Exception as exc:  # noqa: BLE001 - tried elsewhere, re-raised below
+                    last = exc
+                    log.warning("overpass %s failed: %s", url.split("/")[2], exc)
+            wait = max(overpass_slot_wait(), 10 * (attempt + 1))
+            log.warning("all overpass endpoints failed (round %d); waiting %ds", attempt + 1, wait)
+            time.sleep(wait)
+        raise RuntimeError(f"overpass failed on every endpoint after {retries} rounds") from last
 
     return cached_json("overpass", query, produce)  # type: ignore[return-value]
 

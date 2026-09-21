@@ -28,7 +28,25 @@ CITY_BBOX = {
     "Rio Rancho": (35.19, -106.80, 35.36, -106.55),
 }
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+#: Overpass endpoints, tried in order. The main instance rate-limits hard and
+#: will refuse connections outright for a while if you rebuild from a cold
+#: cache, so a build needs somewhere else to go.
+#:
+#: Mirrors are NOT interchangeable and must be checked before being trusted:
+#: overpass.osm.ch answers every query in this study area with an empty result,
+#: including a control query for traffic signals in central Santa Fe, where
+#: the true answer is 294. An empty result looks exactly like "there are no
+#: cameras here". Each endpoint below has been verified against that control.
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+)
+
+#: Per-endpoint timeout. Short on purpose: a mirror that has not answered in
+#: ninety seconds is busy, and moving on is faster than waiting it out.
+OVERPASS_TIMEOUT_S = 90
+OVERPASS_URL = OVERPASS_URLS[0]
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
 #: Both services are volunteer-funded and ask to be identified. Anything

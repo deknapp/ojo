@@ -48,6 +48,16 @@ input[type=text] {
   background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
 }
 input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ac { position: relative; }
+.ac-list {
+  position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 3px);
+  margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow);
+}
+.ac-list[hidden] { display: none; }
+.ac-item { padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: .92rem; }
+.ac-item .where { display: block; font-size: .78rem; color: var(--muted); }
+.ac-item[aria-selected="true"], .ac-item:hover { background: var(--bg); box-shadow: inset 0 0 0 1px var(--accent); }
 button {
   margin-top: 12px; width: 100%; padding: 10px; font: inherit; font-weight: 600;
   background: var(--accent); color: #fff; border: 0; border-radius: 6px; cursor: pointer;
@@ -90,9 +100,17 @@ footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 16px;
     <div class="panel">
       <h2>Plan a drive</h2>
       <label for="from">Start</label>
-      <input type="text" id="from" placeholder="e.g. 1050 Old Pecos Trail, Santa Fe" autocomplete="off">
+      <div class="ac">
+        <input type="text" id="from" placeholder="e.g. 1050 Old Pecos Trail, Santa Fe" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="from-list">
+        <ul class="ac-list" id="from-list" role="listbox" aria-label="Address suggestions" hidden></ul>
+      </div>
       <label for="to">Destination</label>
-      <input type="text" id="to" placeholder="e.g. Santa Fe Place Mall" autocomplete="off">
+      <div class="ac">
+        <input type="text" id="to" placeholder="e.g. Santa Fe Place Mall" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="to-list">
+        <ul class="ac-list" id="to-list" role="listbox" aria-label="Address suggestions" hidden></ul>
+      </div>
       <button id="go">Show enforcement on this route</button>
       <div class="status" id="status"></div>
       <div id="results"></div>
@@ -292,12 +310,170 @@ function renderMeta() {
 // address and no location is sent anywhere this page controls, because this
 // page has no backend to send it to.
 
+// Nominatim asks for at most one request a second. Queueing it here rather
+// than sleeping at the call site means the rule holds however many lookups a
+// route turns out to need, and costs nothing when it needs none.
+let nominatimQueue = Promise.resolve();
+function nominatimTurn() {
+  const mine = nominatimQueue;
+  nominatimQueue = mine.then(() => new Promise((r) => setTimeout(r, 1100)));
+  return mine;
+}
+
 async function geocode(q) {
+  await nominatimTurn();
   const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
     encodeURIComponent(q + (/(NM|New Mexico)/i.test(q) ? "" : ", New Mexico"));
   const r = await fetch(url, { headers: { "Accept": "application/json" } });
   const j = await r.json();
   return j.length ? [parseFloat(j[0].lat), parseFloat(j[0].lon)] : null;
+}
+
+// ---- address suggestions --------------------------------------------------
+// Nominatim's usage policy asks people not to send a request per keystroke, so
+// the typing half of this asks Photon instead, which is built on the same
+// OpenStreetMap data and exists for exactly this. Nominatim stays underneath
+// as the lookup for an address that was typed and never picked from the list.
+//
+// A picked suggestion already carries its coordinates, so choosing one means
+// the route runs with no geocoding request at all.
+
+const PHOTON = "https://photon.komoot.io/api/";
+
+// Northern and central New Mexico: everything the corridor data covers, with
+// enough margin that a destination just outside it still resolves. Bounding
+// the search is accuracy as much as politeness — "Old Pecos Trail" unbounded
+// is ambiguous across the country, and inside this box it is one street.
+const SUGGEST_BBOX = "-107.6,34.2,-104.8,36.7";
+
+// input id -> the suggestion last chosen there, so plan() can tell a picked
+// address from one that was typed over afterwards.
+const picked = new Map();
+
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+// Photon returns a named place and its street address as separate fields, and
+// four different places can share one address — the museum, the children's
+// museum and the arts centre are all 1050 Old Pecos Trail. Leading with the
+// name is what keeps those four distinguishable in the list.
+function suggestionLabel(p) {
+  const street = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const line = p.name || street;
+  const where = [line === street ? "" : street, p.city || p.county, p.state]
+    .filter(Boolean).join(", ");
+  return { line, where };
+}
+
+async function suggest(q, signal) {
+  const url = `${PHOTON}?limit=6&lang=en&bbox=${SUGGEST_BBOX}&q=${encodeURIComponent(q)}`;
+  const j = await (await fetch(url, { signal })).json();
+  const seen = new Set();
+  return (j.features || []).map((f) => ({
+    ...suggestionLabel(f.properties),
+    latlon: [f.geometry.coordinates[1], f.geometry.coordinates[0]],
+  })).filter((s) => {
+    const key = `${s.line}|${s.where}`;
+    if (!s.line || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function attachSuggest(id) {
+  const input = document.getElementById(id);
+  const list = document.getElementById(`${id}-list`);
+  let items = [], active = -1, timer = null, inflight = null;
+
+  function close() {
+    list.hidden = true;
+    list.innerHTML = "";
+    items = []; active = -1;
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+  }
+
+  function highlight(i) {
+    active = i;
+    [...list.children].forEach((li, n) => li.setAttribute("aria-selected", n === i ? "true" : "false"));
+    if (i >= 0) {
+      input.setAttribute("aria-activedescendant", `${id}-opt-${i}`);
+      list.children[i].scrollIntoView({ block: "nearest" });
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  function choose(i) {
+    const s = items[i];
+    if (!s) return;
+    input.value = s.where ? `${s.line}, ${s.where}` : s.line;
+    picked.set(id, { text: input.value, latlon: s.latlon });
+    close();
+  }
+
+  function render(found) {
+    items = found;
+    if (!found.length) { close(); return; }
+    list.innerHTML = found.map((s, n) =>
+      `<li class="ac-item" id="${id}-opt-${n}" role="option" aria-selected="false">${esc(s.line)}` +
+      (s.where ? `<span class="where">${esc(s.where)}</span>` : "") + "</li>").join("");
+    [...list.children].forEach((li, n) => {
+      // mousedown, not click: the input's blur would have closed the list first.
+      li.addEventListener("mousedown", (e) => { e.preventDefault(); choose(n); });
+    });
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    highlight(-1);
+  }
+
+  input.addEventListener("input", () => {
+    picked.delete(id);              // typing over a pick discards the point
+    const q = input.value.trim();
+    clearTimeout(timer);
+    if (inflight) inflight.abort();
+    if (q.length < 3) { close(); return; }
+    // One request per pause in the typing, not one per keystroke.
+    timer = setTimeout(async () => {
+      const controller = new AbortController();
+      inflight = controller;
+      try {
+        render(await suggest(q, controller.signal));
+      } catch (e) {
+        if (e.name !== "AbortError") close();   // a dead suggester is not an error worth showing
+      }
+    }, 250);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (list.hidden || !items.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      highlight((active + 1) % items.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      highlight(active <= 0 ? items.length - 1 : active - 1);
+    } else if (e.key === "Enter" && active >= 0) {
+      // Enter on a highlighted suggestion picks it; it does not also submit,
+      // and stopping here keeps it from reaching the handler that would.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      choose(active);
+    } else if (e.key === "Escape") {
+      close();
+    }
+  });
+
+  input.addEventListener("blur", () => setTimeout(close, 120));
+}
+
+// A picked suggestion is already a point. Anything else goes to Nominatim,
+// which is also the answer when the suggester was unreachable.
+async function resolve(id, text) {
+  const chosen = picked.get(id);
+  if (chosen && chosen.text === text) return chosen.latlon;
+  return geocode(text);
 }
 
 function metresBetween(a, b) {
@@ -348,12 +524,14 @@ async function plan() {
   if (!from || !to) { status.textContent = "Enter a start and a destination."; return; }
 
   button.disabled = true;
-  status.textContent = "Looking up addresses…";
+  const known = (id, text) => (picked.get(id) || {}).text === text;
+  status.textContent = known("from", from) && known("to", to)
+    ? "Finding a route…"          // both came from the list, so both are already points
+    : "Looking up addresses…";
   try {
-    const a = await geocode(from);
+    const a = await resolve("from", from);
     if (!a) throw new Error(`Could not find “${from}”.`);
-    await new Promise((r) => setTimeout(r, 1100));  // Nominatim asks for 1 req/sec
-    const b = await geocode(to);
+    const b = await resolve("to", to);
     if (!b) throw new Error(`Could not find “${to}”.`);
 
     status.textContent = "Finding a route…";
@@ -402,6 +580,7 @@ async function plan() {
 
 document.getElementById("go").addEventListener("click", plan);
 for (const id of ["from", "to"]) {
+  attachSuggest(id);   // first, so Enter on a suggestion picks rather than submits
   document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") plan(); });
 }
 load().catch((e) => { document.getElementById("status").textContent = "Could not load data: " + e.message; });

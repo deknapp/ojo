@@ -60,6 +60,21 @@ here*, which stops being true the moment one moves, and a driver who learns to
 relax between pins has been taught the wrong lesson by the map. The city
 announces a block and signs a zone, so the map draws the zone.
 
+## Typing an address
+
+The route box suggests addresses as you type. Those come from [Photon][photon],
+bounded to northern and central New Mexico, because OpenStreetMap's Nominatim
+asks people not to send it a request per keystroke and it is right to ask. A
+suggestion carries its own coordinates, so picking one plans the route with no
+geocoding request at all; an address typed straight through and never picked
+goes to Nominatim on submit, one request a second. Routing is
+[OSRM][osrm]. All three run in the browser against public services — this page
+has no backend, so there is nowhere for a route or an address to be logged.
+
+The suggestions are also the fix for the quiet failure that came before them:
+four different places share 1050 Old Pecos Trail, and a lookup that silently
+took the first one would put your route somewhere you did not ask for.
+
 ## Running it
 
 ```bash
@@ -115,5 +130,7 @@ has to say.
 [sfnm]: https://www.santafenewmexican.com/news/local_news/santa-fe-speed-cameras-to-launch-monday/article_c67f0db4-aa74-4ad4-b168-987cba2af4e1.html
 [bill]: https://santafenm.gov/Sound_Cameras_Placed_in_Section_24-4_STOP_Program_(Bill).pdf
 [statute]: https://law.justia.com/codes/new-mexico/2018/chapter-66/article-7/section-66-7-301/
+[photon]: https://photon.komoot.io/
+[osrm]: https://project-osrm.org/
 [osm]: https://www.openstreetmap.org/
 [nces]: https://data-nces.opendata.arcgis.com/
